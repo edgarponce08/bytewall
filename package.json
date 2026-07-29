@@ -1,0 +1,28 @@
+{
+  "name": "bytewall",
+  "version": "1.0.0",
+  "description": "Interfaz de control de proyectos multitarea: avance, responsables y evidencias adjuntas.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node src/seed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "proyectos",
+    "kanban",
+    "seguimiento",
+    "evidencias"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^13.0.2",
+    "express": "^4.22.2",
+    "multer": "^2.2.0"
+  }
+}

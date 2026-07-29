@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bytewall · Control de proyectos</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">BW</span>
+      <div>
+        <h1>Bytewall</h1>
+        <p>Control de proyectos multitarea</p>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <label class="identity">
+        <span>Trabajando como</span>
+        <select id="identity-select" aria-label="Persona actual"></select>
+      </label>
+      <button type="button" class="btn ghost" id="btn-new-person">+ Persona</button>
+      <button type="button" class="btn primary" id="btn-new-project">+ Nuevo proyecto</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="kpis" id="kpis" aria-label="Indicadores generales"></section>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab is-active" data-view="board" role="tab">Tablero</button>
+      <button type="button" class="tab" data-view="list" role="tab">Lista</button>
+      <button type="button" class="tab" data-view="people" role="tab">Personas</button>
+    </nav>
+
+    <div class="toolbar" id="toolbar">
+      <input type="search" id="filter-q" class="input" placeholder="Buscar por nombre o descripcion…" />
+      <select id="filter-assignee" class="input" aria-label="Filtrar por responsable"></select>
+      <select id="filter-status" class="input" aria-label="Filtrar por estado">
+        <option value="">Todos los estados</option>
+        <option value="in_progress">En progreso</option>
+        <option value="hold">En espera</option>
+        <option value="complete">Completado</option>
+      </select>
+      <select id="filter-sort" class="input" aria-label="Ordenar">
+        <option value="updated">Actualizados primero</option>
+        <option value="created">Mas recientes</option>
+        <option value="due">Fecha compromiso</option>
+        <option value="progress">Mayor avance</option>
+        <option value="name">Nombre (A-Z)</option>
+      </select>
+      <button type="button" class="btn ghost" id="btn-clear-filters">Limpiar</button>
+    </div>
+
+    <section id="view-board" class="view"></section>
+    <section id="view-list" class="view" hidden></section>
+    <section id="view-people" class="view" hidden></section>
+  </main>
+
+  <!-- Modal: detalle de proyecto -->
+  <dialog id="project-dialog" class="dialog wide">
+    <div id="project-dialog-body"></div>
+  </dialog>
+
+  <!-- Modal: nuevo proyecto -->
+  <dialog id="new-project-dialog" class="dialog">
+    <form method="dialog" id="new-project-form" class="form">
+      <h2>Nuevo proyecto</h2>
+      <label class="field">
+        <span>Nombre <em>*</em></span>
+        <input class="input" name="name" required maxlength="160" placeholder="Ej. Migracion de facturacion" />
+      </label>
+      <label class="field">
+        <span>Descripcion</span>
+        <textarea class="input" name="description" rows="4" maxlength="4000"
+                  placeholder="Objetivo, alcance y entregables"></textarea>
+      </label>
+      <div class="grid-2">
+        <label class="field">
+          <span>Estado</span>
+          <select class="input" name="status">
+            <option value="in_progress">En progreso</option>
+            <option value="hold">En espera</option>
+            <option value="complete">Completado</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Responsable</span>
+          <select class="input" name="assignee_id" data-people-select></select>
+        </label>
+        <label class="field">
+          <span>Prioridad</span>
+          <select class="input" name="priority">
+            <option value="baja">Baja</option>
+            <option value="media" selected>Media</option>
+            <option value="alta">Alta</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Fecha compromiso</span>
+          <input class="input" type="date" name="due_date" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Avance inicial: <output name="progress-out">0</output>%</span>
+        <input type="range" name="progress" min="0" max="100" step="5" value="0" />
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <footer class="form-actions">
+        <button type="button" class="btn ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn primary">Crear proyecto</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modal: nueva persona -->
+  <dialog id="new-person-dialog" class="dialog">
+    <form method="dialog" id="new-person-form" class="form">
+      <h2>Nueva persona</h2>
+      <label class="field">
+        <span>Nombre <em>*</em></span>
+        <input class="input" name="name" required maxlength="120" placeholder="Nombre y apellido" />
+      </label>
+      <div class="grid-2">
+        <label class="field">
+          <span>Correo</span>
+          <input class="input" type="email" name="email" maxlength="160" />
+        </label>
+        <label class="field">
+          <span>Puesto</span>
+          <input class="input" name="role" maxlength="120" placeholder="Ej. Analista" />
+        </label>
+      </div>
+      <p class="form-error" data-error hidden></p>
+      <footer class="form-actions">
+        <button type="button" class="btn ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn primary">Agregar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
