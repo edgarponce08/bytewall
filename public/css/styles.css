@@ -80,14 +80,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-.identity { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-soft); }
-.identity select {
+.identity {
+  display: flex; align-items: center; gap: 9px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 7px 10px;
-  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 14px 5px 6px;
 }
+.identity b { display: block; font-size: 13px; font-weight: 600; }
+.identity small { display: block; font-size: 11.5px; color: var(--text-soft); }
+
+/* ---------- Inicio de sesion ---------- */
+.login-page { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+.login-card {
+  width: min(400px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+  display: grid;
+  gap: 20px;
+}
+.login-hint { font-size: 12.5px; color: var(--text-soft); text-align: center; }
 
 /* ---------- Botones ---------- */
 .btn {
@@ -239,6 +254,8 @@ tbody tr:hover { background: var(--surface-2); }
 td .link { background: none; border: none; padding: 0; color: var(--accent); font-weight: 600; cursor: pointer; text-align: left; }
 td .link:hover { text-decoration: underline; }
 .inline-select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }
+.input:disabled, .inline-select:disabled { opacity: .6; cursor: not-allowed; }
+.person-head h3 .chip { margin-left: 6px; vertical-align: middle; }
 
 .people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .person-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }

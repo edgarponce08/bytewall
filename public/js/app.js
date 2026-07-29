@@ -10,17 +10,23 @@ const STATUS_LABELS = {
   complete: 'Completado',
 };
 const STATUS_ORDER = ['in_progress', 'hold', 'complete'];
-const IDENTITY_KEY = 'bytewall.identity';
 
 const state = {
   view: 'board',
+  user: null,
   people: [],
   projects: [],
   stats: null,
   config: { allowed_extensions: [], max_upload_mb: 25 },
-  identityId: Number(localStorage.getItem(IDENTITY_KEY)) || null,
   filters: { q: '', assignee_id: '', status: '', sort: 'updated' },
 };
+
+/* --------------------------------- permisos ------------------------------- */
+
+const isAdmin = () => state.user?.access_level === 'admin';
+
+/** Solo el responsable del proyecto o un administrador reportan avance. */
+const canReport = (project) => isAdmin() || project?.assignee_id === state.user?.id;
 
 /* ------------------------------- utilidades ------------------------------ */
 
@@ -87,6 +93,10 @@ async function api(path, options = {}) {
     init.body = JSON.stringify(init.body);
   }
   const response = await fetch(`/api${path}`, init);
+  if (response.status === 401) {
+    window.location.replace('/login.html');
+    throw new Error('Sesion expirada.');
+  }
   const isJson = (response.headers.get('content-type') || '').includes('application/json');
   const payload = isJson ? await response.json() : null;
   if (!response.ok) throw new Error(payload?.error || `Error ${response.status}`);
@@ -144,13 +154,14 @@ function render() {
 }
 
 function renderIdentity() {
-  const select = $('#identity-select');
-  select.innerHTML =
-    `<option value="">— sin identificar —</option>` +
-    state.people
-      .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
-      .join('');
-  select.value = state.identityId ? String(state.identityId) : '';
+  const user = state.user;
+  if (!user) return;
+  $('#identity-avatar').textContent = initials(user.name);
+  $('#identity-name').textContent = user.name;
+  $('#identity-role').textContent =
+    user.access_level === 'admin' ? 'Administrador' : user.role || 'Miembro';
+  $('#btn-new-person').hidden = !isAdmin();
+  $('#btn-new-project').hidden = !isAdmin();
 }
 
 function renderPeopleSelects() {
@@ -158,9 +169,17 @@ function renderPeopleSelects() {
     .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
     .join('');
 
+  // En el filtro se marca la propia cuenta para llegar rapido a "mis proyectos".
+  const filterOptions = state.people
+    .map(
+      (p) =>
+        `<option value="${p.id}">${escapeHtml(p.name)}${p.id === state.user?.id ? ' (yo)' : ''}</option>`
+    )
+    .join('');
+
   const filter = $('#filter-assignee');
   filter.innerHTML =
-    `<option value="">Todos los responsables</option><option value="none">Sin responsable</option>${options}`;
+    `<option value="">Todos los responsables</option><option value="none">Sin responsable</option>${filterOptions}`;
   filter.value = state.filters.assignee_id;
 
   $$('[data-people-select]').forEach((select) => {
@@ -202,7 +221,7 @@ function progressBar(project) {
 
 function projectCard(project) {
   const overdue = isOverdue(project);
-  return `<article class="card status-${project.status}" draggable="true" data-project="${project.id}">
+  return `<article class="card status-${project.status}" draggable="${canReport(project)}" data-project="${project.id}">
       <div class="card-title">${escapeHtml(project.name)}</div>
       ${project.description ? `<p class="card-desc">${escapeHtml(project.description)}</p>` : ''}
       ${progressBar(project)}
@@ -251,7 +270,8 @@ function renderList() {
           ${project.description ? `<div class="card-desc" style="margin:2px 0 0">${escapeHtml(project.description)}</div>` : ''}
         </td>
         <td>
-          <select class="inline-select" data-status-for="${project.id}">
+          <select class="inline-select" data-status-for="${project.id}"
+                  ${canReport(project) ? '' : 'disabled title="Solo el responsable o un administrador"'}>
             ${STATUS_ORDER.map(
               (status) =>
                 `<option value="${status}"${status === project.status ? ' selected' : ''}>${STATUS_LABELS[status]}</option>`
@@ -259,7 +279,8 @@ function renderList() {
           </select>
         </td>
         <td>
-          <select class="inline-select" data-assignee-for="${project.id}">
+          <select class="inline-select" data-assignee-for="${project.id}"
+                  ${isAdmin() ? '' : 'disabled title="Solo un administrador reasigna proyectos"'}>
             <option value="">Sin responsable</option>
             ${state.people
               .map(
@@ -299,7 +320,9 @@ function renderPeople() {
         <header class="person-head">
           <span class="avatar lg">${initials(person.name)}</span>
           <div>
-            <h3>${escapeHtml(person.name)}</h3>
+            <h3>${escapeHtml(person.name)}
+              ${person.access_level === 'admin' ? '<span class="chip">admin</span>' : ''}
+              ${person.has_login ? '' : '<span class="chip">sin acceso</span>'}</h3>
             <p>${escapeHtml(person.role || 'Sin puesto')}${person.email ? ` · ${escapeHtml(person.email)}` : ''}</p>
           </div>
         </header>
@@ -337,6 +360,10 @@ function fileIcon(extension) {
 }
 
 function renderProjectDetail(project) {
+  const admin = isAdmin();
+  const reporter = canReport(project);
+  const adminOnly = admin ? '' : ' disabled';
+
   const peopleOptions = state.people
     .map(
       (person) =>
@@ -357,7 +384,7 @@ function renderProjectDetail(project) {
             <div class="evidence-actions">
               <a class="btn small ghost" href="/api/attachments/${item.id}/file?inline=1" target="_blank" rel="noopener">Ver</a>
               <a class="btn small ghost" href="/api/attachments/${item.id}/file" download>Bajar</a>
-              <button type="button" class="btn small danger" data-delete-attachment="${item.id}">×</button>
+              ${reporter ? `<button type="button" class="btn small danger" data-delete-attachment="${item.id}">×</button>` : ''}
             </div>
           </div>`
         )
@@ -380,7 +407,7 @@ function renderProjectDetail(project) {
           <p class="muted">Creado ${formatDateTime(project.created_at)} · Actualizado ${formatDateTime(project.updated_at)}</p>
         </div>
         <div class="card-meta-row">
-          <button type="button" class="btn small danger" data-delete-project>Eliminar</button>
+          ${admin ? '<button type="button" class="btn small danger" data-delete-project>Eliminar</button>' : ''}
           <button type="button" class="btn small ghost" data-close-detail>Cerrar</button>
         </div>
       </header>
@@ -391,16 +418,16 @@ function renderProjectDetail(project) {
           <form id="detail-form" class="form" style="padding:0;gap:12px">
             <label class="field">
               <span>Nombre</span>
-              <input class="input" name="name" required maxlength="160" value="${escapeHtml(project.name)}" />
+              <input class="input" name="name" required maxlength="160" value="${escapeHtml(project.name)}"${adminOnly} />
             </label>
             <label class="field">
               <span>Descripcion</span>
-              <textarea class="input" name="description" rows="4" maxlength="4000">${escapeHtml(project.description)}</textarea>
+              <textarea class="input" name="description" rows="4" maxlength="4000"${adminOnly}>${escapeHtml(project.description)}</textarea>
             </label>
             <div class="grid-2">
               <label class="field">
                 <span>Estado</span>
-                <select class="input" name="status">
+                <select class="input" name="status"${reporter ? '' : ' disabled'}>
                   ${STATUS_ORDER.map(
                     (status) =>
                       `<option value="${status}"${status === project.status ? ' selected' : ''}>${STATUS_LABELS[status]}</option>`
@@ -409,11 +436,11 @@ function renderProjectDetail(project) {
               </label>
               <label class="field">
                 <span>Responsable</span>
-                <select class="input" name="assignee_id"><option value="">Sin responsable</option>${peopleOptions}</select>
+                <select class="input" name="assignee_id"${adminOnly}><option value="">Sin responsable</option>${peopleOptions}</select>
               </label>
               <label class="field">
                 <span>Prioridad</span>
-                <select class="input" name="priority">
+                <select class="input" name="priority"${adminOnly}>
                   ${['baja', 'media', 'alta']
                     .map(
                       (priority) =>
@@ -424,23 +451,26 @@ function renderProjectDetail(project) {
               </label>
               <label class="field">
                 <span>Fecha compromiso</span>
-                <input class="input" type="date" name="due_date" value="${project.due_date || ''}" />
+                <input class="input" type="date" name="due_date" value="${project.due_date || ''}"${adminOnly} />
               </label>
             </div>
             <label class="field">
               <span>Avance: <output id="detail-progress-out">${project.progress}</output>%</span>
-              <input type="range" name="progress" min="0" max="100" step="5" value="${project.progress}" />
+              <input type="range" name="progress" min="0" max="100" step="5" value="${project.progress}"${reporter ? '' : ' disabled'} />
             </label>
             <p class="form-error" data-error hidden></p>
-            <div class="form-actions">
-              <button type="submit" class="btn primary">Guardar cambios</button>
-            </div>
+            ${reporter
+              ? `<div class="form-actions"><button type="submit" class="btn primary">Guardar cambios</button></div>`
+              : `<p class="muted" style="font-size:12.5px;color:var(--text-soft)">
+                   Solo el responsable del proyecto o un administrador pueden actualizarlo.
+                 </p>`}
           </form>
         </div>
 
         <div class="detail-col">
           <h4>Evidencias de avance</h4>
-          <form id="evidence-form" class="upload-box">
+          ${reporter ? '' : '<p class="empty" style="padding:12px">Solo el responsable adjunta evidencias.</p>'}
+          <form id="evidence-form" class="upload-box"${reporter ? '' : ' hidden'}>
             <input type="file" name="file" required
                    accept="${state.config.allowed_extensions.map((ext) => `.${ext}`).join(',')}" />
             <input class="input" name="note" maxlength="1000" placeholder="Nota del avance (opcional)" />
@@ -467,10 +497,7 @@ function renderProjectDetail(project) {
 /* -------------------------------- acciones -------------------------------- */
 
 async function patchProject(id, changes) {
-  await api(`/projects/${id}`, {
-    method: 'PATCH',
-    body: { ...changes, actor_id: state.identityId },
-  });
+  await api(`/projects/${id}`, { method: 'PATCH', body: changes });
   await refreshProjects();
 }
 
@@ -479,15 +506,19 @@ async function submitDetailForm(form, projectId) {
   const errorBox = $('[data-error]', form);
   errorBox.hidden = true;
   try {
-    await patchProject(projectId, {
-      name: data.name,
-      description: data.description,
-      status: data.status,
-      assignee_id: data.assignee_id || null,
-      priority: data.priority,
-      due_date: data.due_date || null,
-      progress: Number(data.progress),
-    });
+    // Un responsable no administrador solo puede mover estado y avance:
+    // enviar mas campos haria que el servidor rechazara la peticion.
+    const changes = { status: data.status, progress: Number(data.progress) };
+    if (isAdmin()) {
+      Object.assign(changes, {
+        name: data.name,
+        description: data.description,
+        assignee_id: data.assignee_id || null,
+        priority: data.priority,
+        due_date: data.due_date || null,
+      });
+    }
+    await patchProject(projectId, changes);
     toast('Proyecto actualizado.', 'success');
     await openProject(projectId);
   } catch (err) {
@@ -498,7 +529,6 @@ async function submitDetailForm(form, projectId) {
 
 async function submitEvidence(form, projectId) {
   const formData = new FormData(form);
-  if (state.identityId) formData.set('uploader_id', state.identityId);
   const submit = $('button[type="submit"]', form);
   submit.disabled = true;
   submit.textContent = 'Subiendo…';
@@ -554,11 +584,41 @@ function bindFilters() {
   });
 }
 
-function bindIdentity() {
-  $('#identity-select').addEventListener('change', (event) => {
-    state.identityId = event.target.value ? Number(event.target.value) : null;
-    if (state.identityId) localStorage.setItem(IDENTITY_KEY, String(state.identityId));
-    else localStorage.removeItem(IDENTITY_KEY);
+function bindSession() {
+  $('#btn-logout').addEventListener('click', async () => {
+    try {
+      await api('/auth/logout', { method: 'POST' });
+    } catch {
+      // Aunque falle el cierre en el servidor, se manda al login.
+    }
+    window.location.replace('/login.html');
+  });
+
+  const dialog = $('#password-dialog');
+  const form = $('#password-form');
+
+  $('#btn-password').addEventListener('click', () => {
+    form.reset();
+    $('[data-error]', form).hidden = true;
+    dialog.showModal();
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    const errorBox = $('[data-error]', form);
+    errorBox.hidden = true;
+    try {
+      await api('/auth/password', {
+        method: 'POST',
+        body: { current_password: data.current_password, new_password: data.new_password },
+      });
+      dialog.close();
+      toast('Contrasena actualizada.', 'success');
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.hidden = false;
+    }
   });
 }
 
@@ -669,10 +729,7 @@ function bindProjectDialog() {
     if (deleteAttachment) {
       if (!confirm('¿Eliminar esta evidencia?')) return;
       try {
-        await api(`/attachments/${deleteAttachment.dataset.deleteAttachment}`, {
-          method: 'DELETE',
-          body: { actor_id: state.identityId },
-        });
+        await api(`/attachments/${deleteAttachment.dataset.deleteAttachment}`, { method: 'DELETE' });
         toast('Evidencia eliminada.', 'success');
         await refreshProjects();
         await openProject(projectId);
@@ -721,7 +778,6 @@ function bindNewProject() {
     $('[data-error]', form).hidden = true;
     $('output[name="progress-out"]', form).textContent = '0';
     renderPeopleSelects();
-    if (state.identityId) form.assignee_id.value = String(state.identityId);
     dialog.showModal();
   });
 
@@ -747,7 +803,6 @@ function bindNewProject() {
           priority: data.priority,
           due_date: data.due_date || null,
           progress: Number(data.progress),
-          actor_id: state.identityId,
         },
       });
       dialog.close();
@@ -777,11 +832,16 @@ function bindNewPerson() {
     const errorBox = $('[data-error]', form);
     errorBox.hidden = true;
     try {
-      const person = await api('/people', { method: 'POST', body: data });
-      if (!state.identityId) {
-        state.identityId = person.id;
-        localStorage.setItem(IDENTITY_KEY, String(person.id));
-      }
+      const person = await api('/people', {
+        method: 'POST',
+        body: {
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          access_level: data.access_level,
+          password: data.password || undefined,
+        },
+      });
       dialog.close();
       toast(`${person.name} agregado.`, 'success');
       await loadAll();
@@ -804,7 +864,7 @@ function bindDialogCloseButtons() {
 async function init() {
   bindTabs();
   bindFilters();
-  bindIdentity();
+  bindSession();
   bindViewDelegation();
   bindDragAndDrop();
   bindProjectDialog();
@@ -813,6 +873,7 @@ async function init() {
   bindDialogCloseButtons();
 
   try {
+    state.user = await api('/auth/me');
     state.config = await api('/config');
     await loadAll();
   } catch (err) {

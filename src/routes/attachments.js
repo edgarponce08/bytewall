@@ -6,11 +6,11 @@ const express = require('express');
 const { db, logActivity } = require('../db');
 const { ALLOWED_EXTENSIONS } = require('../constants');
 const { upload, extensionOf, resolveStoredPath, removeStoredFile } = require('../storage');
+const { assertCanReport } = require('../policy');
 const {
   HttpError,
   cleanText,
   parseId,
-  parseOptionalId,
   parseProgress,
 } = require('../validation');
 
@@ -33,26 +33,35 @@ projectAttachments.get('/', (req, res) => {
   );
 });
 
+/** Se valida el permiso antes de multer para no escribir archivos en vano. */
+function authorizeUpload(req, res, next) {
+  try {
+    const project = db
+      .prepare('SELECT * FROM projects WHERE id = ?')
+      .get(parseId(req.params.projectId, 'projectId'));
+    if (!project) throw new HttpError(404, 'Proyecto no encontrado.');
+    assertCanReport(req.user, project);
+    req.project = project;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 /**
  * Carga de evidencia (multipart/form-data).
- * Campos: file, note, uploader_id, progress (opcional: actualiza el avance).
+ * Campos: file, note, progress (opcional: actualiza el avance).
+ * El autor se toma de la sesion, no del cliente.
  */
-projectAttachments.post('/', upload.single('file'), (req, res) => {
-  const projectId = parseId(req.params.projectId, 'projectId');
-  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+projectAttachments.post('/', authorizeUpload, upload.single('file'), (req, res) => {
+  const project = req.project;
+  const projectId = project.id;
 
-  if (!project) {
-    if (req.file) removeStoredFile(req.file.filename);
-    throw new HttpError(404, 'Proyecto no encontrado.');
-  }
   if (!req.file) throw new HttpError(400, 'Adjunte un archivo de evidencia.');
 
   try {
     const note = cleanText(req.body.note, { field: 'nota', max: 1000 });
-    const uploaderId = parseOptionalId(req.body.uploader_id, 'uploader_id');
-    if (uploaderId && !db.prepare('SELECT id FROM people WHERE id = ?').get(uploaderId)) {
-      throw new HttpError(400, 'La persona que sube la evidencia no existe.');
-    }
+    const uploaderId = req.user.id;
     const progress = req.body.progress === undefined || req.body.progress === ''
       ? null
       : parseProgress(req.body.progress);
@@ -132,6 +141,9 @@ attachments.get('/:id/file', (req, res) => {
   const inline = req.query.inline === '1';
   const asciiName = attachment.original_name.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
   res.setHeader('Content-Type', attachment.mime_type || 'application/octet-stream');
+  // Un adjunto servido en linea no debe poder ejecutar nada en el origen.
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
   res.setHeader(
     'Content-Disposition',
     `${inline ? 'inline' : 'attachment'}; filename="${asciiName}"; ` +
@@ -142,7 +154,9 @@ attachments.get('/:id/file', (req, res) => {
 
 attachments.delete('/:id', (req, res) => {
   const attachment = requireAttachment(parseId(req.params.id));
-  const actorId = parseOptionalId(req.body?.actor_id, 'actor_id');
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(attachment.project_id);
+  assertCanReport(req.user, project);
+  const actorId = req.user.id;
 
   db.transaction(() => {
     db.prepare('DELETE FROM attachments WHERE id = ?').run(attachment.id);

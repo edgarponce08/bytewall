@@ -1,15 +1,33 @@
 -- Esquema de Bytewall: control de proyectos multitarea.
 
 CREATE TABLE IF NOT EXISTS people (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT    NOT NULL,
-  email       TEXT,
-  role        TEXT,
-  active      INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  name          TEXT    NOT NULL,
+  email         TEXT,
+  role          TEXT,
+  active        INTEGER NOT NULL DEFAULT 1,
+  password_hash TEXT,
+  access_level  TEXT    NOT NULL DEFAULT 'member'
+                  CHECK (access_level IN ('admin', 'member')),
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_people_name ON people (name COLLATE NOCASE);
+
+-- El correo es el usuario para iniciar sesion: unico cuando existe.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_people_email
+  ON people (email COLLATE NOCASE) WHERE email IS NOT NULL;
+
+-- Sesiones activas. Se guarda el hash del token, nunca el token en claro.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT    PRIMARY KEY,
+  person_id  INTEGER NOT NULL REFERENCES people (id) ON DELETE CASCADE,
+  user_agent TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_person ON sessions (person_id);
 
 CREATE TABLE IF NOT EXISTS projects (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

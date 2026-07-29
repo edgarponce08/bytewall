@@ -18,12 +18,17 @@
     </div>
 
     <div class="topbar-actions">
-      <label class="identity">
-        <span>Trabajando como</span>
-        <select id="identity-select" aria-label="Persona actual"></select>
-      </label>
-      <button type="button" class="btn ghost" id="btn-new-person">+ Persona</button>
-      <button type="button" class="btn primary" id="btn-new-project">+ Nuevo proyecto</button>
+      <div class="identity" id="identity">
+        <span class="avatar" id="identity-avatar"></span>
+        <div>
+          <b id="identity-name"></b>
+          <small id="identity-role"></small>
+        </div>
+      </div>
+      <button type="button" class="btn ghost" id="btn-password">Contrasena</button>
+      <button type="button" class="btn ghost" id="btn-logout">Salir</button>
+      <button type="button" class="btn ghost" id="btn-new-person" hidden>+ Persona</button>
+      <button type="button" class="btn primary" id="btn-new-project" hidden>+ Nuevo proyecto</button>
     </div>
   </header>
 
@@ -126,7 +131,7 @@
       </label>
       <div class="grid-2">
         <label class="field">
-          <span>Correo</span>
+          <span>Correo (usuario para entrar)</span>
           <input class="input" type="email" name="email" maxlength="160" />
         </label>
         <label class="field">
@@ -134,10 +139,53 @@
           <input class="input" name="role" maxlength="120" placeholder="Ej. Analista" />
         </label>
       </div>
+      <div class="grid-2">
+        <label class="field">
+          <span>Contrasena inicial</span>
+          <input class="input" type="password" name="password" minlength="8" maxlength="200"
+                 autocomplete="new-password" placeholder="Minimo 8 caracteres" />
+        </label>
+        <label class="field">
+          <span>Nivel de acceso</span>
+          <select class="input" name="access_level">
+            <option value="member">Miembro (reporta avance)</option>
+            <option value="admin">Administrador (todo)</option>
+          </select>
+        </label>
+      </div>
+      <p class="field" style="color:var(--text-soft);font-size:12.5px;margin:0">
+        Deje la contrasena vacia si la persona solo debe aparecer como responsable,
+        sin poder iniciar sesion.
+      </p>
       <p class="form-error" data-error hidden></p>
       <footer class="form-actions">
         <button type="button" class="btn ghost" data-close>Cancelar</button>
         <button type="submit" class="btn primary">Agregar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modal: cambiar contrasena -->
+  <dialog id="password-dialog" class="dialog">
+    <form method="dialog" id="password-form" class="form">
+      <h2>Cambiar contrasena</h2>
+      <label class="field">
+        <span>Contrasena actual</span>
+        <input class="input" type="password" name="current_password" required
+               autocomplete="current-password" />
+      </label>
+      <label class="field">
+        <span>Nueva contrasena</span>
+        <input class="input" type="password" name="new_password" required minlength="8"
+               maxlength="200" autocomplete="new-password" />
+      </label>
+      <p class="field" style="color:var(--text-soft);font-size:12.5px;margin:0">
+        Al cambiarla se cerraran las sesiones abiertas en otros dispositivos.
+      </p>
+      <p class="form-error" data-error hidden></p>
+      <footer class="form-actions">
+        <button type="button" class="btn ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn primary">Guardar</button>
       </footer>
     </form>
   </dialog>

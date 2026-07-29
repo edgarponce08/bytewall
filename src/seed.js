@@ -6,6 +6,7 @@
  */
 
 const { db, logActivity } = require('./db');
+const { hashPassword } = require('./auth');
 
 const existing = db.prepare('SELECT COUNT(*) AS total FROM projects').get().total;
 if (existing > 0) {
@@ -13,21 +14,31 @@ if (existing > 0) {
   process.exit(0);
 }
 
+// Contrasena unica para las cuentas de ejemplo; sirve solo para probar.
+const DEMO_PASSWORD = process.env.SEED_PASSWORD || 'bytewall2026';
+
 const people = [
-  { name: 'Ana Torres', email: 'ana@ejemplo.com', role: 'Lider de proyecto' },
-  { name: 'Luis Ramirez', email: 'luis@ejemplo.com', role: 'Desarrollador' },
-  { name: 'Sofia Mendez', email: 'sofia@ejemplo.com', role: 'Analista de calidad' },
+  { name: 'Ana Torres', email: 'ana@ejemplo.com', role: 'Lider de proyecto', access: 'admin' },
+  { name: 'Luis Ramirez', email: 'luis@ejemplo.com', role: 'Desarrollador', access: 'member' },
+  { name: 'Sofia Mendez', email: 'sofia@ejemplo.com', role: 'Analista de calidad', access: 'member' },
 ];
 
-const insertPerson = db.prepare('INSERT INTO people (name, email, role) VALUES (?, ?, ?)');
+const insertPerson = db.prepare(
+  `INSERT INTO people (name, email, role, access_level, password_hash)
+   VALUES (?, ?, ?, ?, ?)`
+);
 const insertProject = db.prepare(
   `INSERT INTO projects (name, description, status, assignee_id, progress, priority, due_date)
    VALUES (?, ?, ?, ?, ?, ?, ?)`
 );
 
 const seed = db.transaction(() => {
+  const passwordHash = hashPassword(DEMO_PASSWORD);
   const ids = people.map((person) =>
-    Number(insertPerson.run(person.name, person.email, person.role).lastInsertRowid)
+    Number(
+      insertPerson.run(person.name, person.email, person.role, person.access, passwordHash)
+        .lastInsertRowid
+    )
   );
 
   const projects = [
@@ -45,3 +56,7 @@ const seed = db.transaction(() => {
 
 seed();
 console.log('Datos de ejemplo cargados: 3 personas y 4 proyectos.');
+console.log(`Acceso de prueba (contrasena "${DEMO_PASSWORD}"):`);
+for (const person of people) {
+  console.log(`  ${person.email.padEnd(20)} ${person.access}`);
+}

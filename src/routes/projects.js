@@ -14,6 +14,8 @@ const {
   parseId,
   parseOptionalId,
 } = require('../validation');
+const { requireAdmin } = require('../auth');
+const { assertCanApplyChanges } = require('../policy');
 
 const router = express.Router();
 
@@ -159,14 +161,14 @@ router.get('/:id', (req, res) => {
   res.json(project);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAdmin, (req, res) => {
   const name = cleanText(req.body.name, { field: 'nombre', max: 160, required: true });
   const description = cleanText(req.body.description, { field: 'descripcion', max: 4000 });
   const status = req.body.status ? parseStatus(req.body.status) : 'in_progress';
   const priority = req.body.priority ? parsePriority(req.body.priority) : 'media';
   const assigneeId = parseOptionalId(req.body.assignee_id, 'assignee_id');
   const dueDate = parseDueDate(req.body.due_date);
-  const actorId = parseOptionalId(req.body.actor_id, 'actor_id');
+  const actorId = req.user.id;
   let progress = req.body.progress === undefined ? 0 : parseProgress(req.body.progress);
   if (status === 'complete' && req.body.progress === undefined) progress = 100;
 
@@ -196,7 +198,14 @@ router.post('/', (req, res) => {
 router.patch('/:id', (req, res) => {
   const id = parseId(req.params.id);
   const current = requireProject(id);
-  const actorId = parseOptionalId(req.body.actor_id, 'actor_id');
+  const actorId = req.user.id;
+
+  const editable = ['name', 'description', 'status', 'assignee_id', 'progress', 'priority', 'due_date'];
+  assertCanApplyChanges(
+    req.user,
+    current,
+    editable.filter((field) => req.body[field] !== undefined)
+  );
 
   const next = { ...current };
   const changes = [];
@@ -278,7 +287,7 @@ router.patch('/:id', (req, res) => {
   res.json(getProject(id));
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAdmin, (req, res) => {
   const id = parseId(req.params.id);
   const files = db.prepare('SELECT stored_name FROM attachments WHERE project_id = ?').all(id);
   const info = db.prepare('DELETE FROM projects WHERE id = ?').run(id);
