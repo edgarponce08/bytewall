@@ -11,8 +11,9 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18.x]
+        node-version: [18.x, 20.x]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,11 +27,19 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci --prefer-offline --no-audit --progress=false
           else
-            npm install
+            npm install --no-audit --no-fund
           fi
         shell: bash
 
       - name: Run tests
         run: npm test
+
+      - name: Upload test summary (optional)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.node-version }}
+          path: |
+            test-results || test || coverage || .
