@@ -62,6 +62,10 @@ Es solo para probar: no lo use en producción.
 Para desarrollo con recarga automática: `npm run dev`.
 Pruebas de la API y de permisos: `npm test`.
 
+> **¿No programa?** Para probarlo en su propia computadora con Windows, paso a
+> paso y sin tecnicismos, siga la
+> **[guía de instalación en Windows](docs/INSTALAR-WINDOWS.md)**.
+>
 > **Para instalarlo en un servidor de la empresa** (servicio con systemd o
 > Docker, HTTPS con proxy inverso, respaldos, monitoreo y administración de
 > cuentas desde la terminal), siga la
