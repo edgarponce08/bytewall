@@ -1,0 +1,54 @@
+; Servicio systemd para correr Bytewall en un servidor interno.
+;
+; Instalacion:
+;   sudo useradd --system --home /opt/bytewall --shell /usr/sbin/nologin bytewall
+;   sudo cp -r . /opt/bytewall && cd /opt/bytewall && sudo npm ci --omit=dev
+;   sudo chown -R bytewall:bytewall /opt/bytewall
+;   sudo cp deploy/bytewall.service /etc/systemd/system/
+;   sudo systemctl daemon-reload && sudo systemctl enable --now bytewall
+;
+; Primer arranque (para ver la contrasena del administrador inicial):
+;   sudo journalctl -u bytewall -n 40
+
+[Unit]
+Description=Bytewall - control de proyectos
+Documentation=https://github.com/edgarponce08/bytewall
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bytewall
+Group=bytewall
+WorkingDirectory=/opt/bytewall
+; Con env se encuentra node sin importar si esta en /usr/bin o /usr/local/bin.
+ExecStart=/usr/bin/env node server.js
+EnvironmentFile=-/opt/bytewall/.env
+
+; Reinicio automatico ante cualquier caida.
+Restart=always
+RestartSec=3
+
+; El cierre ordenado consolida el WAL de SQLite; dele tiempo.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+; Endurecimiento: el proceso solo puede escribir su carpeta de datos.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/bytewall/data /opt/bytewall/backups
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bytewall
+
+[Install]
+WantedBy=multi-user.target

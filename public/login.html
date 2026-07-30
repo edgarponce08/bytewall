@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bytewall · Iniciar sesion</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand">
+      <span class="brand-mark">BW</span>
+      <div>
+        <h1>Bytewall</h1>
+        <p>Control de proyectos multitarea</p>
+      </div>
+    </div>
+
+    <form id="login-form" class="form" style="padding:0">
+      <label class="field">
+        <span>Correo</span>
+        <input class="input" type="email" name="email" required autocomplete="username"
+               autofocus placeholder="usuario@empresa.com" />
+      </label>
+      <label class="field">
+        <span>Contrasena</span>
+        <input class="input" type="password" name="password" required
+               autocomplete="current-password" />
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <button type="submit" class="btn primary" style="width:100%">Entrar</button>
+    </form>
+
+    <p class="login-hint">
+      ¿Sin cuenta? Pidale a un administrador que la cree desde la seccion
+      <strong>Personas</strong>.
+    </p>
+  </main>
+
+  <script src="/js/login.js"></script>
+</body>
+</html>

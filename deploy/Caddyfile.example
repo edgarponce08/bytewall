@@ -1,0 +1,28 @@
+# Alternativa mas corta a nginx. Caddy resuelve el certificado solo.
+#
+#   sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Arranque Bytewall con COOKIE_SECURE=1 y TRUST_PROXY=1.
+
+proyectos.empresa.local {
+	# En una red interna sin salida a internet, Caddy no puede validar con
+	# Let's Encrypt: use el certificado de la CA de la empresa...
+	# tls /etc/ssl/certs/bytewall.crt /etc/ssl/private/bytewall.key
+	#
+	# ...o deje que Caddy emita uno propio y distribuya su CA a los equipos:
+	tls internal
+
+	# Debe ser mayor que MAX_UPLOAD_MB.
+	request_body {
+		max_size 30MB
+	}
+
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy 127.0.0.1:3000
+
+	log {
+		output file /var/log/caddy/bytewall.log
+	}
+}
