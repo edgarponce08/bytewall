@@ -1,0 +1,45 @@
+name: Node.js Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --prefer-offline --no-audit --progress=false
+          else
+            npm install --no-audit --no-fund
+          fi
+        shell: bash
+
+      - name: Run tests
+        run: npm test
+
+      - name: Upload test summary (optional)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.node-version }}
+          path: |
+            test-results || test || coverage || .

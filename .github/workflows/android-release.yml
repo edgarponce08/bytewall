@@ -1,0 +1,56 @@
+name: Android Release CI
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build & sign Android Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "ERROR: ANDROID_KEYSTORE_BASE64 secret is missing" && exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > keystore.jks
+
+      - name: Create keystore properties
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=keystore.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Grant execute to gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build release
+        run: ./gradlew assembleRelease -x test
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            app/build/outputs/**/*.apk
+            app/build/outputs/**/*.aab
