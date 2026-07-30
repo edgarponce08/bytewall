@@ -30,7 +30,7 @@ vista de carga de trabajo por persona.
 
 ## Requisitos
 
-- Node.js 18 o superior (probado en Node 22).
+- Node.js 20 o superior (probado en Node 22).
 
 ## Instalación y arranque
 
@@ -61,7 +61,28 @@ Es solo para probar: no lo use en producción.
 Para desarrollo con recarga automática: `npm run dev`.
 Pruebas de la API y de permisos: `npm test`.
 
+> **Para instalarlo en un servidor de la empresa** (servicio con systemd o
+> Docker, HTTPS con proxy inverso, respaldos, monitoreo y administración de
+> cuentas desde la terminal), siga la
+> **[guía de operación interna](docs/OPERACION.md)**.
+
+### Comandos
+
+| Comando | Para qué sirve |
+|---|---|
+| `npm start` | Arranca el servidor |
+| `npm run dev` | Arranca con recarga automática |
+| `npm test` | Corre las pruebas |
+| `npm run seed` | Carga datos de ejemplo (solo para probar) |
+| `npm run user -- list` | Administra cuentas desde la terminal |
+| `npm run backup` | Respalda base y evidencias en caliente |
+| `npm run restore -- <carpeta>` | Restaura un respaldo |
+
 ### Variables de entorno
+
+Se pueden pasar por el entorno o escribirse en un archivo `.env` (hay una
+plantilla en [`.env.example`](.env.example)). El entorno tiene prioridad sobre
+el archivo.
 
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
@@ -70,12 +91,15 @@ Pruebas de la API y de permisos: `npm test`.
 | `DATA_DIR` | `./data` | Carpeta de datos |
 | `DB_FILE` | `./data/bytewall.db` | Archivo SQLite |
 | `UPLOAD_DIR` | `./data/uploads` | Carpeta de evidencias |
+| `BACKUP_DIR` | `./backups` | Destino de `npm run backup` |
 | `MAX_UPLOAD_MB` | `25` | Tamaño máximo por archivo |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | generados | Credenciales del administrador inicial |
 | `SESSION_DAYS` | `7` | Duración de la sesión |
 | `COOKIE_SECURE` | `0` | Póngalo en `1` cuando sirva por HTTPS |
 | `TRUST_PROXY` | `0` | `1` si corre detrás de un proxy inverso |
 | `LOGIN_MAX_ATTEMPTS` | `8` | Intentos fallidos permitidos por 10 minutos |
+| `LOG_REQUESTS` | `1` | Una línea de bitácora por petición |
+| `ENV_FILE` | `./.env` | Ruta alterna del archivo de configuración |
 
 ## Acceso y roles
 
@@ -120,8 +144,8 @@ versionan. Para respaldar, copie esa carpeta completa.
 ## Arquitectura
 
 ```
-server.js              arranque del servidor
-src/app.js             app de Express, rutas y manejo de errores
+server.js              arranque, cierre ordenado y limpieza de sesiones
+src/app.js             app de Express, rutas, sonda de salud y errores
 src/auth.js            contraseñas (scrypt), sesiones, cookies y middleware
 src/policy.js          quién puede hacer qué
 src/db.js              conexión SQLite + bitácora
@@ -129,19 +153,26 @@ src/schema.sql         tablas: people, projects, attachments, activity, sessions
 src/constants.js       estados, prioridades, formatos permitidos
 src/validation.js      validación de entrada
 src/storage.js         multer, nombres de archivo y borrado seguro
+src/env.js             carga del .env sin dependencias
+src/logging.js         una línea de bitácora por petición
 src/routes/            auth.js · people.js · projects.js · attachments.js
+src/cli/               user.js (cuentas) · backup.js · restore.js
 public/                interfaz y pantalla de acceso (HTML + CSS + JS sin dependencias)
+deploy/                systemd, nginx y Caddy de ejemplo
 test/api.test.js       pruebas de API, sesión y permisos con node:test
 ```
+
+Para desplegar: `Dockerfile`, `docker-compose.yml` y `.github/workflows/ci.yml`.
 
 Sin build ni framework de frontend: se sirve HTML, CSS y JS estáticos.
 
 ### API
 
-Salvo `/api/auth/login`, todas las rutas exigen sesión.
+Salvo `/api/health` y `/api/auth/login`, todas las rutas exigen sesión.
 
 | Método | Ruta | Permiso | Descripción |
 |---|---|---|---|
+| `GET` | `/api/health` | público | Sonda para monitoreo (`503` si la base falla) |
 | `POST` | `/api/auth/login` | público | Inicia sesión y entrega la cookie |
 | `POST` | `/api/auth/logout` | sesión | Cierra la sesión actual |
 | `GET` | `/api/auth/me` | sesión | Usuario y nivel de acceso |
@@ -181,9 +212,14 @@ Salvo `/api/auth/login`, todas las rutas exigen sesión.
 - Toda consulta usa sentencias preparadas.
 - El contenido dinámico se escapa antes de insertarse en el DOM.
 
-### Antes de publicarla fuera de la red interna
+### Antes de ponerla en marcha en la empresa
 
 1. **Sírvala por HTTPS** y arranque con `COOKIE_SECURE=1` (y `TRUST_PROXY=1` si
-   hay un proxy inverso delante). Sin esto la cookie de sesión viaja en claro.
+   hay un proxy inverso delante). Sin esto la cookie de sesión viaja en claro,
+   incluso dentro de la red interna. Hay ejemplos listos en `deploy/`.
 2. Cambie la contraseña del administrador inicial y no use `npm run seed`.
-3. Respalde la carpeta `data/`: ahí están la base y las evidencias.
+3. Programe `npm run backup` (la carpeta `data/` tiene la base y las
+   evidencias) y copie los respaldos a otra máquina.
+4. Apunte su monitoreo a `/api/health`.
+
+Los pasos completos están en la [guía de operación interna](docs/OPERACION.md).

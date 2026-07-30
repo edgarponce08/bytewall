@@ -1,0 +1,28 @@
+# Arranque en un servidor interno con Docker:
+#
+#   cp .env.example .env     # ajuste ADMIN_EMAIL y ADMIN_PASSWORD
+#   docker compose up -d
+#   docker compose logs -f   # aqui aparece la contrasena del primer admin
+#
+# Publica en el puerto 3000 de la maquina. Para HTTPS, ponga nginx o Caddy
+# delante (deploy/) y cambie el mapeo a 127.0.0.1:3000:3000.
+
+services:
+  bytewall:
+    build: .
+    image: bytewall:latest
+    container_name: bytewall
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - bytewall-data:/data
+
+volumes:
+  bytewall-data:

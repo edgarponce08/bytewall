@@ -11,7 +11,9 @@ const {
   ALLOWED_EXTENSIONS,
   MAX_UPLOAD_MB,
 } = require('./constants');
+const { db } = require('./db');
 const { attachUser, requireAuth, sameOriginOnly, ensureBootstrapAdmin } = require('./auth');
+const { requestLogger } = require('./logging');
 const authRoutes = require('./routes/auth');
 const peopleRoutes = require('./routes/people');
 const projectRoutes = require('./routes/projects');
@@ -19,11 +21,16 @@ const { projectAttachments, attachments } = require('./routes/attachments');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
-function createApp({ bootstrap = true, quietBootstrap = false } = {}) {
+function createApp({ bootstrap = true, quietBootstrap = false, log } = {}) {
   const app = express();
   app.set('trust proxy', process.env.TRUST_PROXY === '1');
 
   if (bootstrap) ensureBootstrapAdmin({ quiet: quietBootstrap });
+
+  // Por omision se registra todo menos en las pruebas; LOG_REQUESTS lo fuerza.
+  const shouldLog = log ?? (process.env.LOG_REQUESTS
+    ? process.env.LOG_REQUESTS === '1'
+    : process.env.NODE_ENV !== 'test');
 
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -35,9 +42,28 @@ function createApp({ bootstrap = true, quietBootstrap = false } = {}) {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(attachUser);
+  if (shouldLog) app.use(requestLogger);
   app.use(sameOriginOnly);
 
-  // Unica seccion abierta: iniciar sesion.
+  /**
+   * Sonda para monitoreo interno: no exige sesion y no revela datos.
+   * Responde 503 si la base de datos deja de contestar.
+   */
+  app.get('/api/health', (req, res) => {
+    try {
+      db.prepare('SELECT 1').get();
+      res.json({
+        status: 'ok',
+        version: require('../package.json').version,
+        uptime_s: Math.round(process.uptime()),
+      });
+    } catch (err) {
+      console.error('Fallo en la sonda de salud:', err);
+      res.status(503).json({ status: 'error' });
+    }
+  });
+
+  // Unica seccion abierta ademas de la sonda: iniciar sesion.
   app.use('/api/auth', authRoutes);
 
   // De aqui en adelante todo exige sesion valida.

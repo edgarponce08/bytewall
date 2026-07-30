@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Pruebas de API, sesion y permisos
+        run: npm test
+
+      - name: Verifica que el servidor arranca y responde la sonda de salud
+        run: |
+          DATA_DIR="$RUNNER_TEMP/bytewall-data" PORT=3123 \
+            ADMIN_EMAIL=ci@bytewall.local ADMIN_PASSWORD=clave-de-prueba-ci \
+            LOG_REQUESTS=0 node server.js &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3123/api/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3123/api/health | grep -q '"status":"ok"'
+          # Sin sesion la interfaz redirige al acceso.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3123/)" = 302

@@ -1,0 +1,65 @@
+# Proxy inverso con HTTPS para Bytewall en una red interna.
+#
+#   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/bytewall
+#   sudo ln -s /etc/nginx/sites-available/bytewall /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Arranque Bytewall con COOKIE_SECURE=1 y TRUST_PROXY=1 al usar este archivo.
+#
+# Para el certificado en red interna hay dos caminos:
+#   - Certificado de la CA interna de la empresa (lo ideal: sin avisos).
+#   - Autofirmado, instalando el certificado en los equipos:
+#       sudo openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
+#         -keyout /etc/ssl/private/bytewall.key \
+#         -out /etc/ssl/certs/bytewall.crt \
+#         -subj "/CN=proyectos.empresa.local" \
+#         -addext "subjectAltName=DNS:proyectos.empresa.local"
+
+server {
+    listen 80;
+    server_name proyectos.empresa.local;
+
+    # Todo el trafico va a HTTPS: la cookie de sesion no debe viajar en claro.
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name proyectos.empresa.local;
+
+    ssl_certificate     /etc/ssl/certs/bytewall.crt;
+    ssl_certificate_key /etc/ssl/private/bytewall.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # Debe ser mayor que MAX_UPLOAD_MB; el limite de nginx es 1 MB por omision
+    # y cortaria las evidencias grandes con un 413.
+    client_max_body_size 30m;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    access_log /var/log/nginx/bytewall.access.log;
+    error_log  /var/log/nginx/bytewall.error.log;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Subir y descargar evidencias puede tardar en redes lentas.
+        proxy_read_timeout    120s;
+        proxy_send_timeout    120s;
+        proxy_request_buffering off;
+    }
+
+    # Sonda para el monitoreo interno, sin registrar cada consulta.
+    location = /api/health {
+        proxy_pass http://127.0.0.1:3000/api/health;
+        access_log off;
+    }
+}
