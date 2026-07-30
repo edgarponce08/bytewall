@@ -11,7 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        # better-sqlite3 exige Node >= 22, y Node 20 dejo de recibir
+        # actualizaciones de seguridad en abril de 2026.
+        node: ['22', '24']
 
     steps:
       - uses: actions/checkout@v4

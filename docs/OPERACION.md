@@ -24,7 +24,7 @@ interna. Para el uso diario de la aplicación vea el [README](../README.md).
 | | Mínimo | Comentario |
 |---|---|---|
 | Sistema | Linux, Windows o macOS | Probado en Linux con Node 22 |
-| Node.js | 20 (recomendado 22) | `node --version` |
+| Node.js | 22 o superior | `node --version` — Node 20 ya no recibe parches |
 | RAM | 512 MB | El proceso usa ~80 MB |
 | Disco | 1 GB + evidencias | Las evidencias son lo que crece |
 | Red | Puerto interno (3000) | Publique 443 por el proxy |

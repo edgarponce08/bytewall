@@ -1,5 +1,17 @@
 'use strict';
 
+// better-sqlite3 no arranca en versiones anteriores: falla con SIGSEGV al
+// primer uso en lugar de dar un error legible. Mejor avisar aqui.
+const MIN_NODE_MAJOR = 22;
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+if (nodeMajor < MIN_NODE_MAJOR) {
+  console.error(
+    `Bytewall necesita Node.js ${MIN_NODE_MAJOR} o superior. ` +
+      `Esta corriendo con ${process.version}.`
+  );
+  process.exit(1);
+}
+
 // El .env se carga antes de cualquier modulo que lea process.env.
 require('./src/env').loadEnvFile();
 

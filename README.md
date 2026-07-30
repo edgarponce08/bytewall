@@ -30,7 +30,8 @@ vista de carga de trabajo por persona.
 
 ## Requisitos
 
-- Node.js 20 o superior (probado en Node 22).
+- Node.js 22 o superior (probado en Node 22). Node 20 no sirve: `better-sqlite3`
+  exige 22 o mayor, y Node 20 dejó de recibir parches de seguridad en abril de 2026.
 
 ## Instalación y arranque
 
