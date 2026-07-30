@@ -1,0 +1,80 @@
+name: iOS Release CI
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build & sign iOS Release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decode provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          if [ -z "${IOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "ERROR: IOS_PROVISIONING_PROFILE_BASE64 is missing" && exit 1
+          fi
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+
+      - name: Decode distribution certificate
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+        run: |
+          if [ -z "${IOS_CERTIFICATE_BASE64:-}" ]; then
+            echo "ERROR: IOS_CERTIFICATE_BASE64 is missing" && exit 1
+          fi
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > cert.p12
+
+      - name: Install certificate into keychain
+        env:
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          security create-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign || true
+          security list-keychains -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+      - name: Install provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Install CocoaPods
+        if: files.exists('Podfile')
+        run: |
+          sudo gem install cocoapods -v '>=1.11' --no-document || true
+          pod install --project-directory=.
+
+      - name: Build archive
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -archivePath ${{ github.workspace }}/build/App.xcarchive archive
+
+      - name: Export IPA
+        env:
+          EXPORT_METHOD: app-store
+        run: |
+          mkdir -p build/export
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>${EXPORT_METHOD}</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive -archivePath ${{ github.workspace }}/build/App.xcarchive -exportOptionsPlist exportOptions.plist -exportPath ${{ github.workspace }}/build/export || true
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: ${{ github.workspace }}/build/export
